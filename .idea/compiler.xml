@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="delivery-service" />
+        <module name="delivery-simulator-service" />
+        <module name="fleet-service" />
+        <module name="ai-fleet-assistant" />
+        <module name="fleet-common" />
+        <module name="mqtt-ingestion-service" />
+      </profile>
+    </annotationProcessing>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="ai-fleet-assistant" options="-parameters" />
+      <module name="delivery-service" options="-parameters" />
+      <module name="delivery-simulator-service" options="-parameters" />
+      <module name="fleet-common" options="-parameters" />
+      <module name="fleet-service" options="-parameters" />
+      <module name="mqtt-ingestion-service" options="-parameters" />
+    </option>
+  </component>
+</project>
