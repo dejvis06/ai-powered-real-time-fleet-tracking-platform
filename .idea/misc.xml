@@ -1,6 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="ProjectRootManager" version="2">
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="MavenProjectsManager">
+    <option name="originalFiles">
+      <list>
+        <option value="$PROJECT_DIR$/ai-fleet-assistant/ai-fleet-assistant/pom.xml" />
+        <option value="$PROJECT_DIR$/delivery-service/delivery-service/pom.xml" />
+        <option value="$PROJECT_DIR$/delivery-simulator-service/delivery-simulator-service/pom.xml" />
+        <option value="$PROJECT_DIR$/fleet-common/fleet-common/pom.xml" />
+        <option value="$PROJECT_DIR$/fleet-service/fleet-service/pom.xml" />
+        <option value="$PROJECT_DIR$/mqtt-ingestion-service/mqtt-ingestion-service/pom.xml" />
+        <option value="$PROJECT_DIR$/ai-fleet-assistant/pom.xml" />
+        <option value="$PROJECT_DIR$/delivery-service/pom.xml" />
+        <option value="$PROJECT_DIR$/delivery-simulator-service/pom.xml" />
+        <option value="$PROJECT_DIR$/fleet-common/pom.xml" />
+        <option value="$PROJECT_DIR$/fleet-service/pom.xml" />
+        <option value="$PROJECT_DIR$/mqtt-ingestion-service/pom.xml" />
+      </list>
+    </option>
+  </component>
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_25" default="true" project-jdk-name="21" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>
