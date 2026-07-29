@@ -1,0 +1,215 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────
+# AI-Powered Real-Time Fleet Tracking Platform
+# Docker Compose — local development stack
+# ─────────────────────────────────────────────────────────────
+
+networks:
+  fleet-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  mosquitto-data:
+  kafka-data:
+
+services:
+
+  # ── Infrastructure ────────────────────────────────────────────
+
+  postgres:
+    image: postgres:18
+    container_name: fleet-postgres
+    networks: [fleet-net]
+    environment:
+      POSTGRES_DB: fleet_delivery
+      POSTGRES_USER: fleet
+      POSTGRES_PASSWORD: fleet
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fleet -d fleet_delivery"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8.6
+    container_name: fleet-redis
+    networks: [fleet-net]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: fleet-mosquitto
+    networks: [fleet-net]
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    ports:
+      - "1883:1883"   # MQTT
+      - "9001:9001"   # WebSockets
+
+  kafka:
+    image: apache/kafka:4.0.0
+    container_name: fleet-kafka
+    networks: [fleet-net]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: fleet-cluster-01
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  kafka-init:
+    image: apache/kafka:4.0.0
+    container_name: fleet-kafka-init
+    networks: [fleet-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic vehicle-location   --partitions 4 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic eta-updated        --partitions 4 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic delivery-started   --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic delivery-completed --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic delivery-failed    --partitions 1 --replication-factor 1
+        echo "Kafka topics created."
+
+  # ── Application Services ───────────────────────────────────────
+
+  delivery-service:
+    build:
+      context: ..
+      dockerfile: delivery-service/Dockerfile
+    container_name: fleet-delivery-service
+    networks: [fleet-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: fleet_delivery
+      DB_USER: fleet
+      DB_PASSWORD: fleet
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GOOGLE_ROUTES_API_KEY: ${GOOGLE_ROUTES_API_KEY}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  mqtt-ingestion-service:
+    build:
+      context: ..
+      dockerfile: mqtt-ingestion-service/Dockerfile
+    container_name: fleet-mqtt-ingestion
+    networks: [fleet-net]
+    depends_on:
+      - mosquitto
+      - kafka-init
+    environment:
+      MQTT_BROKER_URL: tcp://mosquitto:1883
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8085:8085"
+
+  eta-service:
+    build:
+      context: ..
+      dockerfile: eta-service/Dockerfile
+    container_name: fleet-eta-service
+    networks: [fleet-net]
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GOOGLE_ROUTES_API_KEY: ${GOOGLE_ROUTES_API_KEY}
+    ports:
+      - "8083:8083"
+    # Scale to 8 instances for production: docker compose up --scale eta-service=8
+    deploy:
+      replicas: 1
+
+  programmable-proxy:
+    build:
+      context: ..
+      dockerfile: programmable-proxy/Dockerfile
+    container_name: fleet-proxy
+    networks: [fleet-net]
+    depends_on:
+      redis:
+        condition: service_healthy
+      delivery-service:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ETA_SERVICE_URL: http://eta-service:8083
+      DELIVERY_SERVICE_URL: http://delivery-service:8081
+    ports:
+      - "8084:8084"
+
+  delivery-simulator:
+    build:
+      context: ..
+      dockerfile: delivery-simulator/Dockerfile
+    container_name: fleet-simulator
+    networks: [fleet-net]
+    depends_on:
+      delivery-service:
+        condition: service_healthy
+      - mosquitto
+    environment:
+      MQTT_BROKER_URL: tcp://mosquitto:1883
+      DELIVERY_SERVICE_URL: http://delivery-service:8081
+      SIMULATOR_INTERVAL_MS: 3000
+      SIMULATOR_SPEED_KPH: 50.0
+    ports:
+      - "8086:8086"

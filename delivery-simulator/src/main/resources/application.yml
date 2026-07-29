@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: delivery-simulator
+  main:
+    web-application-type: servlet
+
+server:
+  port: 8086
+
+mqtt:
+  broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+  client-id: ${MQTT_CLIENT_ID:delivery-simulator}
+
+simulator:
+  delivery-service-url: ${DELIVERY_SERVICE_URL:http://localhost:8081}
+  location-publish-interval-ms: ${SIMULATOR_INTERVAL_MS:3000}
+  speed-kph: ${SIMULATOR_SPEED_KPH:50.0}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.fleettracking: INFO

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Tracker</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 320px;
+            background: #1a1a2e;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 16px;
+            overflow-y: auto;
+        }
+
+        #sidebar h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        #sidebar label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        #sidebar input {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #12122a;
+            color: #fff;
+            font-size: 13px;
+        }
+
+        .field-group { display: flex; flex-direction: column; gap: 4px; }
+
+        button {
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            width: 100%;
+        }
+
+        #btn-track {
+            background: #4f46e5;
+            color: #fff;
+        }
+
+        #btn-track:hover { background: #4338ca; }
+
+        #status-panel {
+            background: #12122a;
+            border-radius: 8px;
+            padding: 14px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        #status-panel .label { color: #888; font-size: 11px; }
+        #status-panel .value { color: #fff; font-weight: 500; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-active   { background: #064e3b; color: #34d399; }
+        .badge-completed { background: #1e3a5f; color: #60a5fa; }
+        .badge-failed   { background: #5c1a1a; color: #f87171; }
+        .badge-idle     { background: #2d2d2d; color: #aaa; }
+
+        #log {
+            background: #12122a;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 11px;
+            font-family: monospace;
+            color: #9ca3af;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        #map { flex: 1; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>Fleet Tracker</h1>
+
+    <div class="field-group">
+        <label>Delivery ID</label>
+        <input id="input-delivery-id" type="text" placeholder="Paste delivery UUID…" />
+    </div>
+
+    <div class="field-group">
+        <label>Proxy URL</label>
+        <input id="input-proxy-url" type="text" value="http://localhost:8084" />
+    </div>
+
+    <button id="btn-track">Track Delivery</button>
+
+    <div id="status-panel">
+        <div style="margin-bottom:8px;">
+            <span class="label">Status</span><br>
+            <span id="status-badge" class="badge badge-idle">IDLE</span>
+        </div>
+        <div style="margin-bottom:8px;">
+            <span class="label">ETA</span><br>
+            <span class="value" id="eta-display">—</span>
+        </div>
+        <div style="margin-bottom:8px;">
+            <span class="label">Remaining</span><br>
+            <span class="value" id="remaining-display">—</span>
+        </div>
+        <div>
+            <span class="label">Last update</span><br>
+            <span class="value" id="last-update-display">—</span>
+        </div>
+    </div>
+
+    <div id="log"></div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    // ── State ──────────────────────────────────────────────────────────────────
+    let map, vehicleMarker, destinationMarker, routePolyline;
+    let eventSource = null;
+    let currentDeliveryId = null;
+
+    // ── Logging ────────────────────────────────────────────────────────────────
+    function log(msg) {
+        const el = document.getElementById('log');
+        const line = document.createElement('div');
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        el.prepend(line);
+        if (el.children.length > 50) el.lastChild.remove();
+    }
+
+    // ── Map init ───────────────────────────────────────────────────────────────
+    window.initMap = function () {
+        map = new google.maps.Map(document.getElementById('map'), {
+            zoom: 13,
+            center: { lat: 41.3275, lng: 19.8187 }, // Tirana, Albania default
+            mapId: 'fleet-tracker',
+            disableDefaultUI: false,
+            gestureHandling: 'auto',
+        });
+
+        vehicleMarker = new google.maps.Marker({
+            map,
+            title: 'Vehicle',
+            icon: {
+                path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                scale: 6,
+                fillColor: '#4f46e5',
+                fillOpacity: 1,
+                strokeColor: '#fff',
+                strokeWeight: 2,
+            },
+            visible: false,
+        });
+
+        destinationMarker = new google.maps.Marker({
+            map,
+            title: 'Destination',
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: '#ef4444',
+                fillOpacity: 1,
+                strokeColor: '#fff',
+                strokeWeight: 2,
+            },
+            visible: false,
+        });
+
+        log('Map ready');
+    };
+
+    // ── SSE streaming ──────────────────────────────────────────────────────────
+    document.getElementById('btn-track').addEventListener('click', () => {
+        const deliveryId = document.getElementById('input-delivery-id').value.trim();
+        const proxyUrl = document.getElementById('input-proxy-url').value.trim();
+
+        if (!deliveryId) {
+            alert('Please enter a delivery ID');
+            return;
+        }
+
+        if (eventSource) {
+            eventSource.close();
+            log('Closed previous stream');
+        }
+
+        currentDeliveryId = deliveryId;
+        const url = `${proxyUrl}/proxy/deliveries/${deliveryId}/stream`;
+        log(`Connecting to ${url}`);
+
+        eventSource = new EventSource(url);
+
+        eventSource.addEventListener('ETA_UPDATED', (e) => {
+            const data = JSON.parse(e.data);
+            onEtaUpdated(data);
+        });
+
+        eventSource.addEventListener('DELIVERY_COMPLETED', (e) => {
+            const data = JSON.parse(e.data);
+            onDeliveryCompleted(data);
+        });
+
+        eventSource.addEventListener('DELIVERY_FAILED', (e) => {
+            const data = JSON.parse(e.data);
+            onDeliveryFailed(data);
+        });
+
+        eventSource.onopen = () => {
+            log('SSE connection established');
+            setStatus('ACTIVE');
+        };
+
+        eventSource.onerror = (e) => {
+            log('SSE connection error — browser will retry');
+        };
+    });
+
+    // ── Event handlers ─────────────────────────────────────────────────────────
+    function onEtaUpdated(data) {
+        const lat = data.currentLatitude;
+        const lon = data.currentLongitude;
+        const etaMs = new Date(data.estimatedArrival).getTime();
+        const nowMs = Date.now();
+        const minutesLeft = Math.max(0, Math.round((etaMs - nowMs) / 60000));
+        const distKm = (data.remainingDistanceMeters / 1000).toFixed(1);
+
+        // Move vehicle marker
+        const position = { lat, lng: lon };
+        animateMarker(vehicleMarker, position);
+        vehicleMarker.setVisible(true);
+
+        // Pan map to vehicle
+        map.panTo(position);
+
+        // Update sidebar
+        document.getElementById('eta-display').textContent =
+            new Date(data.estimatedArrival).toLocaleTimeString();
+        document.getElementById('remaining-display').textContent =
+            `${minutesLeft} min · ${distKm} km`;
+        document.getElementById('last-update-display').textContent =
+            new Date().toLocaleTimeString();
+
+        log(`ETA updated: ${minutesLeft}min ${distKm}km away`);
+    }
+
+    function onDeliveryCompleted(data) {
+        log('Delivery COMPLETED');
+        setStatus('COMPLETED');
+        vehicleMarker.setVisible(false);
+        if (eventSource) eventSource.close();
+    }
+
+    function onDeliveryFailed(data) {
+        log(`Delivery FAILED: ${data.reason || ''}`);
+        setStatus('FAILED');
+        if (eventSource) eventSource.close();
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function setStatus(status) {
+        const badge = document.getElementById('status-badge');
+        badge.textContent = status;
+        badge.className = 'badge badge-' + status.toLowerCase();
+    }
+
+    /**
+     * Smoothly animates the marker to a new position over ~500ms.
+     */
+    function animateMarker(marker, targetPos, steps = 20) {
+        const startPos = marker.getPosition();
+        if (!startPos) {
+            marker.setPosition(targetPos);
+            return;
+        }
+        const deltaLat = (targetPos.lat - startPos.lat()) / steps;
+        const deltaLng = (targetPos.lng - startPos.lng()) / steps;
+        let step = 0;
+
+        function move() {
+            if (step >= steps) return;
+            marker.setPosition({
+                lat: startPos.lat() + deltaLat * step,
+                lng: startPos.lng() + deltaLng * step,
+            });
+            step++;
+            setTimeout(move, 500 / steps);
+        }
+        move();
+    }
+
+    /**
+     * Draws or updates the route polyline on the map.
+     */
+    function drawRoute(encodedPolyline) {
+        if (!window.google) return;
+        const path = google.maps.geometry.encoding.decodePath(encodedPolyline);
+        if (routePolyline) {
+            routePolyline.setPath(path);
+        } else {
+            routePolyline = new google.maps.Polyline({
+                path,
+                geodesic: true,
+                strokeColor: '#4f46e5',
+                strokeOpacity: 0.7,
+                strokeWeight: 4,
+                map,
+            });
+        }
+    }
+</script>
+
+<!--
+    Replace YOUR_GOOGLE_MAPS_API_KEY with your actual key.
+    Use the "quarterly" channel for production per the spec.
+-->
+<script
+    src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=geometry&v=quarterly&callback=initMap"
+    async defer>
+</script>
+
+</body>
+</html>

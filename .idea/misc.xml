@@ -16,6 +16,7 @@
         <option value="$PROJECT_DIR$/fleet-common/pom.xml" />
         <option value="$PROJECT_DIR$/fleet-service/pom.xml" />
         <option value="$PROJECT_DIR$/mqtt-ingestion-service/pom.xml" />
+        <option value="$PROJECT_DIR$/pom.xml" />
       </list>
     </option>
   </component>
