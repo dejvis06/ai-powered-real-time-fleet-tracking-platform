@@ -3,6 +3,7 @@ package com.fleettracking.delivery.application.service;
 import com.fleettracking.delivery.application.dto.CreateDeliveryRequest;
 import com.fleettracking.delivery.application.dto.DeliveryResponse;
 import com.fleettracking.delivery.application.dto.FailDeliveryRequest;
+import com.fleettracking.delivery.application.port.DeliveryEventEmitter;
 import com.fleettracking.delivery.application.port.DeliveryStatePublisher;
 import com.fleettracking.delivery.application.port.RouteApiClient;
 import com.fleettracking.delivery.domain.model.Delivery;
@@ -24,17 +25,20 @@ public class DeliveryApplicationService {
     private final DeliveryDomainService domainService;
     private final DeliveryStatePublisher statePublisher;
     private final RouteApiClient routeApiClient;
+    private final DeliveryEventEmitter eventEmitter;
 
     public DeliveryApplicationService(
             DeliveryRepository deliveryRepository,
             DeliveryDomainService domainService,
             DeliveryStatePublisher statePublisher,
-            RouteApiClient routeApiClient
+            RouteApiClient routeApiClient,
+            DeliveryEventEmitter eventEmitter
     ) {
         this.deliveryRepository = deliveryRepository;
         this.domainService = domainService;
         this.statePublisher = statePublisher;
         this.routeApiClient = routeApiClient;
+        this.eventEmitter = eventEmitter;
     }
 
     @Transactional
@@ -68,6 +72,7 @@ public class DeliveryApplicationService {
         delivery.start();
         deliveryRepository.save(delivery);
         statePublisher.publishStarted(delivery);
+        eventEmitter.emitStarted(deliveryId);
         return toResponse(delivery);
     }
 
@@ -77,6 +82,7 @@ public class DeliveryApplicationService {
         delivery.complete();
         deliveryRepository.save(delivery);
         statePublisher.publishCompleted(delivery);
+        eventEmitter.emitCompleted(deliveryId);
         return toResponse(delivery);
     }
 
@@ -86,6 +92,7 @@ public class DeliveryApplicationService {
         delivery.fail(request.reason());
         deliveryRepository.save(delivery);
         statePublisher.publishFailed(delivery);
+        eventEmitter.emitFailed(deliveryId);
         return toResponse(delivery);
     }
 

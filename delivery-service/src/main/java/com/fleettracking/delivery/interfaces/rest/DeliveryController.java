@@ -5,10 +5,13 @@ import com.fleettracking.delivery.application.dto.DeliveryResponse;
 import com.fleettracking.delivery.application.dto.FailDeliveryRequest;
 import com.fleettracking.delivery.application.service.DeliveryApplicationService;
 import com.fleettracking.delivery.application.service.DeliveryNotFoundException;
+import com.fleettracking.delivery.infrastructure.sse.DeliverySseRegistry;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.UUID;
 
@@ -17,9 +20,11 @@ import java.util.UUID;
 public class DeliveryController {
 
     private final DeliveryApplicationService applicationService;
+    private final DeliverySseRegistry sseRegistry;
 
-    public DeliveryController(DeliveryApplicationService applicationService) {
+    public DeliveryController(DeliveryApplicationService applicationService, DeliverySseRegistry sseRegistry) {
         this.applicationService = applicationService;
+        this.sseRegistry = sseRegistry;
     }
 
     @PostMapping
@@ -41,6 +46,11 @@ public class DeliveryController {
     @PostMapping("/{deliveryId}/complete")
     public ResponseEntity<DeliveryResponse> completeDelivery(@PathVariable UUID deliveryId) {
         return ResponseEntity.ok(applicationService.completeDelivery(deliveryId));
+    }
+
+    @GetMapping(value = "/{deliveryId}/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamDeliveryEvents(@PathVariable UUID deliveryId) {
+        return sseRegistry.subscribe(deliveryId);
     }
 
     @PostMapping("/{deliveryId}/fail")

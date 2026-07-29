@@ -3,6 +3,7 @@ version: "3.9"
 # ─────────────────────────────────────────────────────────────
 # AI-Powered Real-Time Fleet Tracking Platform
 # Docker Compose — local development stack
+# Run: docker compose up -d  (build is handled automatically)
 # ─────────────────────────────────────────────────────────────
 
 networks:
@@ -20,7 +21,7 @@ services:
   # ── Infrastructure ────────────────────────────────────────────
 
   postgres:
-    image: postgres:18
+    image: postgres:17
     container_name: fleet-postgres
     networks: [fleet-net]
     environment:
@@ -38,7 +39,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:8.6
+    image: redis:7.2
     container_name: fleet-redis
     networks: [fleet-net]
     volumes:
@@ -60,11 +61,11 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto-data:/mosquitto/data
     ports:
-      - "1883:1883"   # MQTT
-      - "9001:9001"   # WebSockets
+      - "1883:1883"
+      - "9001:9001"
 
   kafka:
-    image: apache/kafka:4.0.0
+    image: apache/kafka:3.7.0
     container_name: fleet-kafka
     networks: [fleet-net]
     environment:
@@ -91,7 +92,7 @@ services:
       retries: 10
 
   kafka-init:
-    image: apache/kafka:4.0.0
+    image: apache/kafka:3.7.0
     container_name: fleet-kafka-init
     networks: [fleet-net]
     depends_on:
@@ -147,8 +148,10 @@ services:
     container_name: fleet-mqtt-ingestion
     networks: [fleet-net]
     depends_on:
-      - mosquitto
-      - kafka-init
+      mosquitto:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       MQTT_BROKER_URL: tcp://mosquitto:1883
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -173,9 +176,7 @@ services:
       GOOGLE_ROUTES_API_KEY: ${GOOGLE_ROUTES_API_KEY}
     ports:
       - "8083:8083"
-    # Scale to 8 instances for production: docker compose up --scale eta-service=8
-    deploy:
-      replicas: 1
+    # Scale to N instances for production: docker compose up --scale eta-service=N
 
   programmable-proxy:
     build:
@@ -205,7 +206,8 @@ services:
     depends_on:
       delivery-service:
         condition: service_healthy
-      - mosquitto
+      mosquitto:
+        condition: service_started
     environment:
       MQTT_BROKER_URL: tcp://mosquitto:1883
       DELIVERY_SERVICE_URL: http://delivery-service:8081
