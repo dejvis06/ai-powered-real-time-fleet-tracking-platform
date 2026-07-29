@@ -330,3 +330,141 @@ Key metrics tracked across the platform:
 | `sse.events.dropped`        | Events dropped (stale after completion)  |
 | `redis.routing.lookup`      | Redis state cache lookups                |
 | `redis.routing.miss`        | Redis cache misses                       |
+
+---
+
+## Build, Start & Use
+
+### Prerequisites
+
+- Java 25
+- Maven 3.9+
+- Docker + Docker Compose
+- A Google Cloud project with both the **Maps JavaScript API** and the **Routes API** enabled
+- A Google API key for the Routes API (backend) and optionally a separate browser-restricted key for the Maps JS API
+
+---
+
+### 1. Configure secrets
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and set your key:
+
+```
+GOOGLE_ROUTES_API_KEY=your_key_here
+```
+
+Also open `fleet-web-client/index.html` and replace `YOUR_GOOGLE_MAPS_API_KEY` in the `<script>` tag at the bottom with your Maps JavaScript API key.
+
+---
+
+### 2. Build all services
+
+Run this from the repository root. It compiles every module and produces a fat JAR in each service's `target/` folder.
+
+```bash
+mvn clean package -DskipTests
+```
+
+---
+
+### 3. Start the infrastructure and services
+
+```bash
+cd infrastructure
+docker compose up -d
+```
+
+Docker Compose will start (in dependency order):
+
+1. PostgreSQL, Redis, Mosquitto, Kafka
+2. A one-shot `kafka-init` container that creates all required topics
+3. delivery-service, mqtt-ingestion-service, eta-service, programmable-proxy, delivery-simulator
+
+Wait ~30 seconds for everything to be healthy. You can check with:
+
+```bash
+docker compose ps
+```
+
+All services should show `healthy` or `running`.
+
+---
+
+### 4. Open the web client
+
+Open `fleet-web-client/index.html` directly in your browser (no server needed — it is a static file).
+
+You should see a map centered on Tirana with an empty sidebar on the left.
+
+---
+
+### 5. Start a delivery simulation
+
+Send a POST request to the simulator with origin and destination coordinates. This example routes from Tirana International Airport to the city center:
+
+```bash
+curl -X POST http://localhost:8086/simulate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "originLat": 41.4147,
+    "originLon": 19.7206,
+    "destLat":   41.3275,
+    "destLon":   19.8187
+  }'
+```
+
+The response contains the `deliveryId`:
+
+```json
+{ "deliveryId": "e3f1a2b4-..." }
+```
+
+Behind the scenes the simulator:
+1. calls `POST /deliveries` on the delivery-service → Google Routes API computes the route
+2. calls `POST /deliveries/{id}/start` → status written to Redis as `ACTIVE`, event published to Kafka
+3. publishes a vehicle location to MQTT every 3 seconds as it steps through waypoints
+
+---
+
+### 6. Track the delivery in the browser
+
+1. Paste the `deliveryId` into the **Delivery ID** field in the web client.
+2. Make sure the **Proxy URL** field is `http://localhost:8084` (the default).
+3. Click **Track Delivery**.
+
+The browser opens an EventSource connection to the programmable proxy. As the simulator moves the vehicle:
+
+- The map pans and the vehicle marker animates along the route.
+- The sidebar updates with the current ETA and remaining distance.
+- When the simulator reaches the destination and calls `complete`, the stream closes and the sidebar shows **COMPLETED**.
+
+---
+
+### 7. Stop everything
+
+```bash
+cd infrastructure
+docker compose down
+```
+
+Add `-v` to also remove the PostgreSQL, Redis, and Kafka volumes:
+
+```bash
+docker compose down -v
+```
+
+---
+
+### Scaling the ETA Service
+
+The platform is designed for 4 Kafka partitions and up to 8 ETA Service instances. To scale locally:
+
+```bash
+docker compose up -d --scale eta-service=4
+```
+
+Kafka will rebalance partitions across the new instances automatically. If one instance goes down, Kafka reassigns its partition to a standby within seconds.
