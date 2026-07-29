@@ -31,13 +31,15 @@ public class RedisDeliveryStateCache implements DeliveryStateCache {
     public Mono<DeliveryStatus> getStatus(UUID deliveryId) {
         String key = "delivery:status:" + deliveryId;
         return redisTemplate.opsForValue().get(key)
-                .map(DeliveryStatus::valueOf)
-                .doOnNext(status -> meterRegistry.counter("redis.routing.lookup").increment())
-                .doOnEmpty(() -> {
+                .map(value -> {
+                    meterRegistry.counter("redis.routing.lookup").increment();
+                    return DeliveryStatus.valueOf(value);
+                })
+                .switchIfEmpty(Mono.fromCallable(() -> {
                     log.warn("No delivery status in Redis for delivery={}", deliveryId);
                     meterRegistry.counter("redis.routing.miss").increment();
-                })
-                .defaultIfEmpty(DeliveryStatus.ACTIVE); // assume active if unknown
+                    return DeliveryStatus.ACTIVE;
+                }));
     }
 
     @Override

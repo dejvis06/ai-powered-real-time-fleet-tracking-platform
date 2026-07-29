@@ -35,9 +35,9 @@ public class RedisDeliveryStateReader implements DeliveryStateReader {
                     meterRegistry.counter("redis.routing.lookup").increment();
                     return DeliveryStatus.valueOf(value);
                 })
-                .doOnEmpty(() -> {
+                .switchIfEmpty(Mono.fromRunnable(() -> {
                     log.warn("No delivery status found in Redis for delivery={}", deliveryId);
                     meterRegistry.counter("redis.routing.miss").increment();
-                });
+                }));
     }
 }

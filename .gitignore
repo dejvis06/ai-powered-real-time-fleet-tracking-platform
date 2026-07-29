@@ -1,0 +1,41 @@
+# Maven
+target/
+*.jar
+*.war
+*.ear
+*.class
+release.properties
+dependency-reduced-pom.xml
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# VS Code
+.vscode/
+
+# Spring Boot
+*.log
+spring-shell.log
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+infrastructure/postgres-data/
+infrastructure/redis-data/
+infrastructure/mosquitto-data/
+infrastructure/kafka-data/
