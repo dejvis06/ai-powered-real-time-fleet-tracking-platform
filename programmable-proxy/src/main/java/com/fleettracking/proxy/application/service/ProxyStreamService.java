@@ -1,6 +1,7 @@
 package com.fleettracking.proxy.application.service;
 
 import com.fleettracking.common.model.DeliveryStatus;
+import com.fleettracking.common.topics.KafkaTopics;
 import com.fleettracking.proxy.application.port.DeliveryStateReader;
 import com.fleettracking.proxy.application.port.UpstreamSseClient;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -58,7 +59,7 @@ public class ProxyStreamService {
     private reactor.core.publisher.Mono<Boolean> shouldRelayEtaEvent(
             UUID deliveryId, ServerSentEvent<String> event
     ) {
-        if (!"ETA_UPDATED".equals(event.event())) {
+        if (!KafkaTopics.ETA_UPDATED.equals(event.event())) {
             return reactor.core.publisher.Mono.just(true);
         }
 
@@ -75,6 +76,6 @@ public class ProxyStreamService {
     }
 
     private boolean isTerminalEvent(ServerSentEvent<String> event) {
-        return "DELIVERY_COMPLETED".equals(event.event()) || "DELIVERY_FAILED".equals(event.event());
+        return KafkaTopics.DELIVERY_COMPLETED.equals(event.event()) || KafkaTopics.DELIVERY_FAILED.equals(event.event());
     }
 }

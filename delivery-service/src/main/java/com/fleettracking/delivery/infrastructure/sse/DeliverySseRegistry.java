@@ -1,5 +1,6 @@
 package com.fleettracking.delivery.infrastructure.sse;
 
+import com.fleettracking.common.topics.KafkaTopics;
 import com.fleettracking.delivery.application.port.DeliveryEventEmitter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,17 +50,17 @@ public class DeliverySseRegistry implements DeliveryEventEmitter {
 
     @Override
     public void emitStarted(UUID deliveryId) {
-        emit(deliveryId, "DELIVERY_STARTED", "{\"deliveryId\":\"" + deliveryId + "\"}");
+        emit(deliveryId, KafkaTopics.DELIVERY_STARTED, "{\"deliveryId\":\"" + deliveryId + "\"}");
     }
 
     @Override
     public void emitCompleted(UUID deliveryId) {
-        emit(deliveryId, "DELIVERY_COMPLETED", "{\"deliveryId\":\"" + deliveryId + "\"}");
+        emit(deliveryId, KafkaTopics.DELIVERY_COMPLETED, "{\"deliveryId\":\"" + deliveryId + "\"}");
     }
 
     @Override
     public void emitFailed(UUID deliveryId) {
-        emit(deliveryId, "DELIVERY_FAILED", "{\"deliveryId\":\"" + deliveryId + "\",\"reason\":\"Delivery failed\"}");
+        emit(deliveryId, KafkaTopics.DELIVERY_FAILED, "{\"deliveryId\":\"" + deliveryId + "\",\"reason\":\"Delivery failed\"}");
     }
 
     /** Emit a named event to all subscribers of a delivery. */
@@ -75,7 +76,7 @@ public class DeliverySseRegistry implements DeliveryEventEmitter {
         for (SseEmitter emitter : list) {
             try {
                 emitter.send(event);
-                if ("DELIVERY_COMPLETED".equals(eventName) || "DELIVERY_FAILED".equals(eventName)) {
+                if (KafkaTopics.DELIVERY_COMPLETED.equals(eventName) || KafkaTopics.DELIVERY_FAILED.equals(eventName)) {
                     emitter.complete();
                     dead.add(emitter);
                 }

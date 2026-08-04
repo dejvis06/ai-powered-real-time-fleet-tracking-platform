@@ -67,6 +67,48 @@
 
         #btn-track:hover { background: #4338ca; }
 
+        #btn-simulate {
+            background: #065f46;
+            color: #fff;
+        }
+
+        #btn-simulate:hover { background: #047857; }
+
+        #simulate-section {
+            background: #12122a;
+            border-radius: 8px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #simulate-section .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 2px;
+        }
+
+        .coords-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .coords-row input {
+            padding: 6px 8px;
+            font-size: 12px;
+        }
+
+        #simulate-status {
+            font-size: 11px;
+            color: #6ee7b7;
+            min-height: 16px;
+        }
+
         #status-panel {
             background: #12122a;
             border-radius: 8px;
@@ -109,6 +151,26 @@
 
 <div id="sidebar">
     <h1>Fleet Tracker</h1>
+
+    <div id="simulate-section">
+        <div class="section-title">Start Simulation</div>
+        <div class="field-group">
+            <label>Simulator URL</label>
+            <input id="input-simulator-url" type="text" value="http://localhost:8086" />
+        </div>
+        <label>Origin (lat, lon)</label>
+        <div class="coords-row">
+            <input id="sim-origin-lat" type="number" step="any" placeholder="Lat" value="41.3275" />
+            <input id="sim-origin-lon" type="number" step="any" placeholder="Lon" value="19.8187" />
+        </div>
+        <label>Destination (lat, lon)</label>
+        <div class="coords-row">
+            <input id="sim-dest-lat" type="number" step="any" placeholder="Lat" value="41.3400" />
+            <input id="sim-dest-lon" type="number" step="any" placeholder="Lon" value="19.8300" />
+        </div>
+        <button id="btn-simulate">Start Simulation</button>
+        <div id="simulate-status"></div>
+    </div>
 
     <div class="field-group">
         <label>Delivery ID</label>
@@ -165,7 +227,7 @@
     window.initMap = function () {
         map = new google.maps.Map(document.getElementById('map'), {
             zoom: 13,
-            center: { lat: 41.3275, lng: 19.8187 }, // Tirana, Albania default
+            center: { lat: 41.3275, lng: 19.8187 },
             mapId: 'fleet-tracker',
             disableDefaultUI: false,
             gestureHandling: 'auto',
@@ -202,6 +264,44 @@
         log('Map ready');
     };
 
+    // ── Simulation trigger ─────────────────────────────────────────────────────
+    document.getElementById('btn-simulate').addEventListener('click', async () => {
+        const simulatorUrl = document.getElementById('input-simulator-url').value.trim();
+        const body = {
+            originLat: parseFloat(document.getElementById('sim-origin-lat').value),
+            originLon: parseFloat(document.getElementById('sim-origin-lon').value),
+            destLat:   parseFloat(document.getElementById('sim-dest-lat').value),
+            destLon:   parseFloat(document.getElementById('sim-dest-lon').value),
+        };
+
+        const statusEl = document.getElementById('simulate-status');
+        statusEl.textContent = 'Starting…';
+
+        try {
+            const res = await fetch(`${simulatorUrl}/simulate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const { deliveryId } = await res.json();
+            document.getElementById('input-delivery-id').value = deliveryId;
+            statusEl.textContent = `Delivery: ${deliveryId}`;
+
+            // DELIVERY_STARTED fires on the server before any SSE subscriber exists,
+            // so we surface it here immediately since we know the delivery just started.
+            log(`[SSE] DELIVERY_STARTED → deliveryId=${deliveryId}`);
+            setStatus('ACTIVE');
+
+            document.getElementById('btn-track').click();
+        } catch (err) {
+            statusEl.textContent = `Error: ${err.message}`;
+            log(`Simulation request failed: ${err.message}`);
+        }
+    });
+
     // ── SSE streaming ──────────────────────────────────────────────────────────
     document.getElementById('btn-track').addEventListener('click', () => {
         const deliveryId = document.getElementById('input-delivery-id').value.trim();
@@ -223,27 +323,43 @@
 
         eventSource = new EventSource(url);
 
-        eventSource.addEventListener('ETA_UPDATED', (e) => {
+        // Named event handlers — each logs the raw payload for visibility
+        eventSource.addEventListener('delivery-started', (e) => {
+            log(`[SSE] delivery-started → ${e.data}`);
+            setStatus('ACTIVE');
+        });
+
+        eventSource.addEventListener('eta-updated', (e) => {
+            console.log('[SSE] eta-updated raw event:', e);
+            console.log('[SSE] eta-updated data:', e.data);
+            log(`[SSE] eta-updated → ${e.data}`);
             const data = JSON.parse(e.data);
             onEtaUpdated(data);
         });
 
-        eventSource.addEventListener('DELIVERY_COMPLETED', (e) => {
+        eventSource.addEventListener('delivery-completed', (e) => {
+            log(`[SSE] delivery-completed → ${e.data}`);
             const data = JSON.parse(e.data);
             onDeliveryCompleted(data);
         });
 
-        eventSource.addEventListener('DELIVERY_FAILED', (e) => {
+        eventSource.addEventListener('delivery-failed', (e) => {
+            log(`[SSE] delivery-failed → ${e.data}`);
             const data = JSON.parse(e.data);
             onDeliveryFailed(data);
         });
 
-        eventSource.onopen = () => {
-            log('SSE connection established');
-            setStatus('ACTIVE');
+        // Catch-all for any unnamed events (event: message or no event field)
+        eventSource.onmessage = (e) => {
+            console.log('[SSE] onmessage (unnamed):', e);
+            log(`[SSE] (unnamed) → ${e.data}`);
         };
 
-        eventSource.onerror = (e) => {
+        eventSource.onopen = () => {
+            log('SSE connection established');
+        };
+
+        eventSource.onerror = () => {
             log('SSE connection error — browser will retry');
         };
     });
@@ -257,23 +373,18 @@
         const minutesLeft = Math.max(0, Math.round((etaMs - nowMs) / 60000));
         const distKm = (data.remainingDistanceMeters / 1000).toFixed(1);
 
-        // Move vehicle marker
         const position = { lat, lng: lon };
         animateMarker(vehicleMarker, position);
         vehicleMarker.setVisible(true);
 
-        // Pan map to vehicle
         map.panTo(position);
 
-        // Update sidebar
         document.getElementById('eta-display').textContent =
             new Date(data.estimatedArrival).toLocaleTimeString();
         document.getElementById('remaining-display').textContent =
             `${minutesLeft} min · ${distKm} km`;
         document.getElementById('last-update-display').textContent =
             new Date().toLocaleTimeString();
-
-        log(`ETA updated: ${minutesLeft}min ${distKm}km away`);
     }
 
     function onDeliveryCompleted(data) {
@@ -296,9 +407,6 @@
         badge.className = 'badge badge-' + status.toLowerCase();
     }
 
-    /**
-     * Smoothly animates the marker to a new position over ~500ms.
-     */
     function animateMarker(marker, targetPos, steps = 20) {
         const startPos = marker.getPosition();
         if (!startPos) {
@@ -321,9 +429,6 @@
         move();
     }
 
-    /**
-     * Draws or updates the route polyline on the map.
-     */
     function drawRoute(encodedPolyline) {
         if (!window.google) return;
         const path = google.maps.geometry.encoding.decodePath(encodedPolyline);
@@ -342,10 +447,6 @@
     }
 </script>
 
-<!--
-    Replace YOUR_GOOGLE_MAPS_API_KEY with your actual key.
-    Use the "quarterly" channel for production per the spec.
--->
 <script
     src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=geometry&v=quarterly&callback=initMap"
     async defer>
