@@ -1,7 +1,6 @@
 package com.fleettracking.simulator.infrastructure.mqtt;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.ObjectMapper;
 import com.fleettracking.common.topics.MqttTopics;
 import com.fleettracking.simulator.application.port.LocationPublisher;
 import jakarta.annotation.PostConstruct;
@@ -22,8 +21,11 @@ public class MqttLocationPublisher implements LocationPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(MqttLocationPublisher.class);
 
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
+    private final ObjectMapper objectMapper;
+
+    public MqttLocationPublisher(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     @Value("${mqtt.broker-url:tcp://localhost:1883}")
     private String brokerUrl;

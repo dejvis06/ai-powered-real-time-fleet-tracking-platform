@@ -1,6 +1,6 @@
 package com.fleettracking.delivery.infrastructure.client;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.fleettracking.delivery.application.port.RouteApiClient;
 import com.fleettracking.delivery.domain.model.GeoPoint;
 import io.micrometer.core.instrument.MeterRegistry;

@@ -28,7 +28,7 @@ bin/
 spring-shell.log
 
 # Environment
-.env
+infrastructure/.env
 
 # OS
 .DS_Store

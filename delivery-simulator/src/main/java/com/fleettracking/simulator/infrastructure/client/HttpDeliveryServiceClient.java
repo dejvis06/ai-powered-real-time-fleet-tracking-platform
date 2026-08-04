@@ -1,6 +1,6 @@
 package com.fleettracking.simulator.infrastructure.client;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.fleettracking.simulator.application.port.DeliveryServiceClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

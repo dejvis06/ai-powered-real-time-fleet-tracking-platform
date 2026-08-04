@@ -50,7 +50,7 @@ public class ProxyStreamService {
                 .doOnNext(e -> meterRegistry.counter("sse.events.forwarded").increment());
 
         return Flux.merge(etaStream, deliveryStream)
-                .takeUntil(event -> isTerminalEvent(event))
+                .takeUntil(this::isTerminalEvent)
                 .doOnCancel(() -> log.debug("Client disconnected from delivery={}", deliveryId))
                 .doOnComplete(() -> log.info("Stream completed for delivery={}", deliveryId));
     }

@@ -49,17 +49,17 @@ public class DeliverySseRegistry implements DeliveryEventEmitter {
 
     @Override
     public void emitStarted(UUID deliveryId) {
-        emit(deliveryId, "DELIVERY_STARTED", deliveryId.toString());
+        emit(deliveryId, "DELIVERY_STARTED", "{\"deliveryId\":\"" + deliveryId + "\"}");
     }
 
     @Override
     public void emitCompleted(UUID deliveryId) {
-        emit(deliveryId, "DELIVERY_COMPLETED", deliveryId.toString());
+        emit(deliveryId, "DELIVERY_COMPLETED", "{\"deliveryId\":\"" + deliveryId + "\"}");
     }
 
     @Override
     public void emitFailed(UUID deliveryId) {
-        emit(deliveryId, "DELIVERY_FAILED", deliveryId.toString());
+        emit(deliveryId, "DELIVERY_FAILED", "{\"deliveryId\":\"" + deliveryId + "\",\"reason\":\"Delivery failed\"}");
     }
 
     /** Emit a named event to all subscribers of a delivery. */

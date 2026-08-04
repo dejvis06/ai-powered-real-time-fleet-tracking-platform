@@ -1,6 +1,6 @@
 package com.fleettracking.eta.infrastructure.client;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.fleettracking.eta.application.port.RoutesApiPort;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;

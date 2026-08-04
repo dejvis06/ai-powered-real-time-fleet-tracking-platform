@@ -4,6 +4,7 @@ import com.fleettracking.proxy.application.service.ProxyStreamService;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,6 +18,7 @@ import java.util.UUID;
  * The client opens one EventSource connection here and receives all events
  * (ETA_UPDATED, DELIVERY_COMPLETED, DELIVERY_FAILED) for the given delivery.
  */
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/proxy")
 public class ProxyController {
