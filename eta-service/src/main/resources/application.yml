@@ -3,7 +3,7 @@ spring:
     name: eta-service
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
     consumer:
       group-id: eta-service
       auto-offset-reset: earliest
@@ -13,6 +13,7 @@ spring:
       properties:
         spring.json.trusted.packages: "com.fleettracking.*"
         spring.json.value.default.type: com.fleettracking.common.events.VehicleLocationEvent
+        spring.json.use.type.headers: false
 
   data:
     redis:
@@ -24,7 +25,7 @@ server:
 
 google:
   routes:
-    api-key: ${GOOGLE_ROUTES_API_KEY}
+    api-key: AIzaSyCnaenoByLQcnzVtF08vu311mPtuO6ILgY
 
 management:
   endpoints:
@@ -41,4 +42,7 @@ management:
 
 logging:
   level:
-    com.fleettracking: INFO
+    com.fleettracking: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.web.reactive.function.client: DEBUG
+    reactor.netty.http.client: DEBUG

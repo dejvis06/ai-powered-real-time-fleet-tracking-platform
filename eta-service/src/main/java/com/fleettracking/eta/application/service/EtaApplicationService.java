@@ -66,10 +66,19 @@ public class EtaApplicationService {
 
     private Mono<Void> calculateAndEmit(VehicleLocationEvent event, Timer.Sample sample) {
         return deliveryStateCache.getDestination(event.deliveryId())
+                .doOnNext(dest -> log.debug("Destination for delivery={}: lat={} lon={}",
+                        event.deliveryId(), dest.latitude(), dest.longitude()))
                 .flatMap(destination -> routesApi.computeRoute(
                         event.latitude(), event.longitude(),
                         destination.latitude(), destination.longitude()
-                ))
+                )
+                .doOnNext(route -> log.debug("Route computed for delivery={}: {}m {}s",
+                        event.deliveryId(), route.distanceMeters(), route.durationSeconds()))
+                .doOnError(e -> log.error("computeRoute failed for delivery={}", event.deliveryId(), e))
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.warn("computeRoute returned empty for delivery={}", event.deliveryId());
+                    return Mono.empty();
+                })))
                 .flatMap(route -> {
                     meterRegistry.counter("eta.calculations").increment();
                     sample.stop(meterRegistry.timer("eta.calculation.duration"));

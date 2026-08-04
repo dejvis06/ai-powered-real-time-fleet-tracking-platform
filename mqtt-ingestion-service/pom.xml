@@ -34,6 +34,12 @@
             <artifactId>spring-boot-starter-json</artifactId>
         </dependency>
 
+        <!-- Spring Integration -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-integration</artifactId>
+        </dependency>
+
         <!-- Spring Integration MQTT -->
         <dependency>
             <groupId>org.springframework.integration</groupId>

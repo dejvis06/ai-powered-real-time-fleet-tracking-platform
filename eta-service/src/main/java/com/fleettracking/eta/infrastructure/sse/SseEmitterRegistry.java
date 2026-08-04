@@ -1,5 +1,6 @@
 package com.fleettracking.eta.infrastructure.sse;
 
+import com.fleettracking.common.topics.KafkaTopics;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +58,7 @@ public class SseEmitterRegistry {
 
         ServerSentEvent<Object> event = ServerSentEvent.builder()
                 .id(UUID.randomUUID().toString())
-                .event("ETA_UPDATED")
+                .event(KafkaTopics.ETA_UPDATED)
                 .data(payload)
                 .build();
 

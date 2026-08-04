@@ -9,6 +9,8 @@ import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+
 @Component
 public class MqttMessageHandler {
 
@@ -25,7 +27,8 @@ public class MqttMessageHandler {
     @ServiceActivator(inputChannel = "mqttInputChannel")
     public void handle(Message<?> message) {
         try {
-            String payload = (String) message.getPayload();
+            byte[] raw = (byte[]) message.getPayload();
+            String payload = new String(raw, StandardCharsets.UTF_8);
             RawLocationMessage locationMessage = objectMapper.readValue(payload, RawLocationMessage.class);
             ingestionService.ingest(locationMessage);
         } catch (Exception e) {

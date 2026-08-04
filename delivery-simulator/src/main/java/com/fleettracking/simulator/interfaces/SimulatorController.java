@@ -2,6 +2,7 @@ package com.fleettracking.simulator.interfaces;
 
 import com.fleettracking.simulator.application.service.SimulationService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import java.util.UUID;
  * Exposes a REST endpoint to trigger a new delivery simulation.
  * Intended for development and testing use.
  */
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/simulate")
 public class SimulatorController {

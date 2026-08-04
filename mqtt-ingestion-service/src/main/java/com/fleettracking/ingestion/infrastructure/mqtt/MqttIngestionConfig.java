@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.channel.DirectChannel;
+import org.springframework.integration.config.EnableIntegration;
 import org.springframework.integration.core.MessageProducer;
 import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
 import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
@@ -13,6 +14,7 @@ import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannel
 import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
 import org.springframework.messaging.MessageChannel;
 
+@EnableIntegration
 @Configuration
 public class MqttIngestionConfig {
 
@@ -33,7 +35,7 @@ public class MqttIngestionConfig {
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
         MqttConnectOptions options = new MqttConnectOptions();
         options.setServerURIs(new String[]{brokerUrl});
-        options.setCleanSession(false);
+        options.setCleanSession(true);
         options.setAutomaticReconnect(true);
         if (username != null) options.setUserName(username);
         if (password != null) options.setPassword(password.toCharArray());
@@ -55,7 +57,9 @@ public class MqttIngestionConfig {
                 MqttTopics.VEHICLE_LOCATION
         );
         adapter.setCompletionTimeout(5000);
-        adapter.setConverter(new DefaultPahoMessageConverter());
+        DefaultPahoMessageConverter converter = new DefaultPahoMessageConverter();
+        converter.setPayloadAsBytes(true);
+        adapter.setConverter(converter);
         adapter.setQos(1);
         adapter.setOutputChannel(mqttInputChannel);
         return adapter;
